@@ -1,103 +1,102 @@
-import Image from "next/image";
+"use client"; // necessário para usar eventos e hooks
 
-export default function Home() {
+import { useState, useRef, ChangeEvent } from "react";
+import './globals.css';
+
+export default function Player() {
+  const musicas = [
+    { arquivo: "/audio/Limp Bizkit - My Way.mp3", capa: "/icones/capa1.jpg" },
+    { arquivo: "/audio/Metallica - All Nightmare.mp3", capa: "/icones/capa2.jpg" },
+    { arquivo: "/audio/Papa Roach - Last Resort.mp3", capa: "/icones/capa3.jpg" },
+  ];
+
+  const [indice, setIndice] = useState(0);
+  const [tocando, setTocando] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const tocarOuPausar = () => {
+    if (!audioRef.current) return;
+
+    if (tocando) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setTocando(!tocando);
+  };
+
+  const tocarMusica = (novoIndice: number) => {
+    if (!audioRef.current) return;
+
+    audioRef.current.src = musicas[novoIndice].arquivo;
+
+    // tocar somente quando o áudio estiver carregado
+    audioRef.current.oncanplay = () => {
+      audioRef.current?.play();
+      setTocando(true);
+      audioRef.current!.oncanplay = null; // limpa o listener para não acumular
+    };
+  };
+
+  const proxima = () => {
+    const novo = (indice + 1) % musicas.length;
+    setIndice(novo);
+    tocarMusica(novo);
+  };
+
+  const anterior = () => {
+    const novo = (indice - 1 + musicas.length) % musicas.length;
+    setIndice(novo);
+    tocarMusica(novo);
+  };
+
+  const mudarVolume = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = parseFloat(e.target.value);
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="player">
+      <h1>🎵 Player de Música</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
+      <div className="album-cover">
+        <img src={musicas[indice].capa} alt="Capa do álbum" />
+      </div>
+
+      <audio ref={audioRef} src={musicas[indice].arquivo}></audio>
+
+      <div className="controls">
+        <a onClick={anterior}>
+          <img src="/icones/Voltar.png" alt="Anterior" />
         </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+
+        <a onClick={tocarOuPausar}>
+          <img
+            src={tocando ? "/icones/Pause.png" : "/icones/Play.png"}
+            alt="Play/Pause"
           />
-          Examples
         </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
+
+        <a onClick={proxima}>
+          <img src="/icones/Avancar.png" alt="Próxima" />
         </a>
-      </footer>
-    </div>
+      </div>
+
+      <div className="volume-control">
+        <img src="/icones/Volume.png" alt="Volume" />
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          defaultValue="0.5"
+          onChange={mudarVolume}
+        />
+      </div>
+
+      <div id="musica-atual">
+        Tocando: {musicas[indice].arquivo.split("/").pop()}
+      </div>
+    </main>
   );
 }
