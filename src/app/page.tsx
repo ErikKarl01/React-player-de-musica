@@ -1,6 +1,6 @@
 "use client"; // necessário para usar eventos e hooks
 
-import { useState, useRef, ChangeEvent } from "react";
+import { useState, useRef, useEffect, ChangeEvent } from "react";
 import './globals.css';
 
 export default function Player() {
@@ -11,48 +11,93 @@ export default function Player() {
   ];
 
   const [indice, setIndice] = useState(0);
+
+  // estado que indica se está tocando (play / pause)
   const [tocando, setTocando] = useState(false);
+
+  // estado do volume (0 a 1)
+  const [volume, setVolume] = useState(0.5);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setTocando(false);
+    setVolume(0.5);
+
+    if (audioRef.current) {
+      audioRef.current.volume = 0.5;
+    }
+    
+  }, []);
+
+  // sincroniza o elemento <audio> sempre que o estado volume mudar
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
 
   const tocarOuPausar = () => {
     if (!audioRef.current) return;
 
     if (tocando) {
       audioRef.current.pause();
+      setTocando(false);
     } else {
-      audioRef.current.play();
+      // tenta tocar; se falhar (autoplay bloqueado) o estado ficará como false
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setTocando(true))
+          .catch(() => {
+            // autoplay bloqueado pelo navegador: apenas atualizamos o estado local
+            // permanecemos em tocando = false, mas o usuário pode clicar novamente
+            setTocando(false);
+          });
+      } else {
+        // caso não retorne promise, assumimos que tocou
+        setTocando(true);
+      }
     }
-    setTocando(!tocando);
   };
 
   const tocarMusica = (novoIndice: number) => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      setIndice(novoIndice);
+      return;
+    }
+
+    setIndice(novoIndice);
 
     audioRef.current.src = musicas[novoIndice].arquivo;
 
-    // tocar somente quando o áudio estiver carregado
+    audioRef.current.volume = volume;
+
     audioRef.current.oncanplay = () => {
-      audioRef.current?.play();
-      setTocando(true);
-      audioRef.current!.oncanplay = null; // limpa o listener para não acumular
+      const p = audioRef.current?.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => setTocando(true)).catch(() => setTocando(false));
+      } else {
+        setTocando(true);
+      }
+      if (audioRef.current) audioRef.current.oncanplay = null;
     };
   };
 
   const proxima = () => {
     const novo = (indice + 1) % musicas.length;
-    setIndice(novo);
     tocarMusica(novo);
   };
 
   const anterior = () => {
     const novo = (indice - 1 + musicas.length) % musicas.length;
-    setIndice(novo);
     tocarMusica(novo);
   };
 
   const mudarVolume = (e: ChangeEvent<HTMLInputElement>) => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = parseFloat(e.target.value);
+    const v = parseFloat(e.target.value);
+    setVolume(v);
+    if (audioRef.current) audioRef.current.volume = v;
   };
 
   return (
@@ -63,6 +108,7 @@ export default function Player() {
         <img src={musicas[indice].capa} alt="Capa do álbum" />
       </div>
 
+      {/* elemento de áudio real — mantido */}
       <audio ref={audioRef} src={musicas[indice].arquivo}></audio>
 
       <div className="controls">
@@ -89,9 +135,10 @@ export default function Player() {
           min="0"
           max="1"
           step="0.01"
-          defaultValue="0.5"
+          value={volume}
           onChange={mudarVolume}
         />
+        <span>{Math.round(volume * 100)}%</span>
       </div>
 
       <div id="musica-atual">
