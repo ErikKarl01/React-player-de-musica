@@ -17,12 +17,16 @@ export default function Player() {
 
   // estado do volume (0 a 1)
   const [volume, setVolume] = useState(0.5);
+  
+  // armazena o volume antes de mutar
+  const [volumeAnterior, setVolumeAnterior] = useState(0.5); 
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setTocando(false);
     setVolume(0.5);
+    setVolumeAnterior(0.5); // Inicializa o volume anterior também
 
     if (audioRef.current) {
       audioRef.current.volume = 0.5;
@@ -97,7 +101,23 @@ export default function Player() {
   const mudarVolume = (e: ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     setVolume(v);
-    if (audioRef.current) audioRef.current.volume = v;
+    // Se o usuário ajustar o slider, guardamos esse novo valor como o "anterior" caso ele mute depois
+    if (v > 0) { 
+      setVolumeAnterior(v);
+    }
+  };
+
+  // Nova função para mutar e desmutar
+  const mutarDesmutar = () => {
+    if (volume > 0) {
+      // Se não está mudo, salvamos o volume atual e mutamos
+      setVolumeAnterior(volume);
+      setVolume(0);
+    } else {
+      // Se está mudo (volume === 0), restauramos o volume anterior
+      // Se o volume anterior por algum motivo também for 0, usamos 0.5 como padrão
+      setVolume(volumeAnterior > 0 ? volumeAnterior : 0.5); 
+    }
   };
 
   return (
@@ -108,7 +128,6 @@ export default function Player() {
         <img src={musicas[indice].capa} alt="Capa do álbum" />
       </div>
 
-      {/* elemento de áudio real — mantido */}
       <audio ref={audioRef} src={musicas[indice].arquivo}></audio>
 
       <div className="controls">
@@ -129,7 +148,10 @@ export default function Player() {
       </div>
 
       <div className="volume-control">
-        <img src="/icones/Volume.png" alt="Volume" />
+        {/* Adiciona o onClick e a lógica para trocar o ícone */}
+        <a onClick={mutarDesmutar} style={{ cursor: 'pointer' }}> 
+          <img src={volume === 0 ? "https://cdn-icons-png.flaticon.com/512/727/727240.png" : "https://cdn-icons-png.flaticon.com/512/727/727269.png"} alt="Volume/Mudo" />
+        </a>
         <input
           type="range"
           min="0"
