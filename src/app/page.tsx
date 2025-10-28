@@ -1,4 +1,4 @@
-"use client"; // necessário para usar eventos e hooks
+"use client";
 
 import { useState, useRef, useEffect, ChangeEvent } from "react";
 import './globals.css';
@@ -11,22 +11,18 @@ export default function Player() {
   ];
 
   const [indice, setIndice] = useState(0);
-
-  // estado que indica se está tocando (play / pause)
   const [tocando, setTocando] = useState(false);
-
-  // estado do volume (0 a 1)
   const [volume, setVolume] = useState(0.5);
-  
-  // armazena o volume antes de mutar
-  const [volumeAnterior, setVolumeAnterior] = useState(0.5); 
+  const [volumeAnterior, setVolumeAnterior] = useState(0.5);
+  const [tempoAtual, setTempoAtual] = useState(0);
+  const [duracaoTotal, setDuracaoTotal] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setTocando(false);
     setVolume(0.5);
-    setVolumeAnterior(0.5); // Inicializa o volume anterior também
+    setVolumeAnterior(0.5);
 
     if (audioRef.current) {
       audioRef.current.volume = 0.5;
@@ -34,7 +30,6 @@ export default function Player() {
     
   }, []);
 
-  // sincroniza o elemento <audio> sempre que o estado volume mudar
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
@@ -48,18 +43,14 @@ export default function Player() {
       audioRef.current.pause();
       setTocando(false);
     } else {
-      // tenta tocar; se falhar (autoplay bloqueado) o estado ficará como false
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setTocando(true))
           .catch(() => {
-            // autoplay bloqueado pelo navegador: apenas atualizamos o estado local
-            // permanecemos em tocando = false, mas o usuário pode clicar novamente
             setTocando(false);
           });
       } else {
-        // caso não retorne promise, assumimos que tocou
         setTocando(true);
       }
     }
@@ -71,21 +62,27 @@ export default function Player() {
       return;
     }
 
+    if (novoIndice === indice && tocando) {
+      return;
+    }
+
     setIndice(novoIndice);
+    setTocando(false);
+    setTempoAtual(0);
+    setDuracaoTotal(0);
 
     audioRef.current.src = musicas[novoIndice].arquivo;
-
+    audioRef.current.load();
     audioRef.current.volume = volume;
 
-    audioRef.current.oncanplay = () => {
-      const p = audioRef.current?.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => setTocando(true)).catch(() => setTocando(false));
-      } else {
-        setTocando(true);
-      }
-      if (audioRef.current) audioRef.current.oncanplay = null;
-    };
+    const playPromise = audioRef.current.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => setTocando(true))
+        .catch(() => setTocando(false));
+    } else {
+      setTocando(true);
+    }
   };
 
   const proxima = () => {
@@ -101,22 +98,56 @@ export default function Player() {
   const mudarVolume = (e: ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     setVolume(v);
-    // Se o usuário ajustar o slider, guardamos esse novo valor como o "anterior" caso ele mute depois
-    if (v > 0) { 
+    if (v > 0) {
       setVolumeAnterior(v);
     }
   };
 
-  // Nova função para mutar e desmutar
   const mutarDesmutar = () => {
     if (volume > 0) {
-      // Se não está mudo, salvamos o volume atual e mutamos
       setVolumeAnterior(volume);
       setVolume(0);
     } else {
-      // Se está mudo (volume === 0), restauramos o volume anterior
-      // Se o volume anterior por algum motivo também for 0, usamos 0.5 como padrão
-      setVolume(volumeAnterior > 0 ? volumeAnterior : 0.5); 
+      setVolume(volumeAnterior > 0 ? volumeAnterior : 0.5);
+    }
+  };
+
+  const formatarTempo = (segundos: number) => {
+    if (isNaN(segundos) || segundos < 0) return "00:00";
+    const min = Math.floor(segundos / 60);
+    const seg = Math.floor(segundos % 60);
+    return `${min.toString().padStart(2, '0')}:${seg.toString().padStart(2, '0')}`;
+  };
+
+  const lidarComMetadados = () => {
+    if (audioRef.current) {
+      setDuracaoTotal(audioRef.current.duration);
+    }
+  };
+
+  const lidarComTempoAtual = () => {
+    if (audioRef.current) {
+      setTempoAtual(audioRef.current.currentTime);
+    }
+  };
+
+  const mudarTempo = (e: ChangeEvent<HTMLInputElement>) => {
+    if (audioRef.current) {
+      const novoTempo = parseFloat(e.target.value);
+      audioRef.current.currentTime = novoTempo;
+      setTempoAtual(novoTempo);
+    }
+  };
+
+  const retroceder10s = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(audioRef.current.currentTime - 10, 0);
+    }
+  };
+
+  const avancar10s = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = audioRef.current.currentTime + 10;
     }
   };
 
@@ -128,7 +159,13 @@ export default function Player() {
         <img src={musicas[indice].capa} alt="Capa do álbum" />
       </div>
 
-      <audio ref={audioRef} src={musicas[indice].arquivo}></audio>
+      <audio
+        ref={audioRef}
+        src={musicas[indice].arquivo}
+        onLoadedMetadata={lidarComMetadados}
+        onTimeUpdate={lidarComTempoAtual}
+        onEnded={proxima}
+      ></audio>
 
       <div className="controls">
         <a onClick={anterior}>
@@ -147,9 +184,32 @@ export default function Player() {
         </a>
       </div>
 
+      <div className="time-controls">
+        <span>{formatarTempo(tempoAtual)}</span>
+        <input
+          type="range"
+          min="0"
+          max={duracaoTotal || 0}
+          value={tempoAtual}
+          onChange={mudarTempo}
+          className="seek-bar"
+          step="0.1"
+          disabled={duracaoTotal === 0}
+        />
+        <span>{formatarTempo(duracaoTotal)}</span>
+      </div>
+
+      <div className="skip-controls">
+        <a onClick={retroceder10s} style={{ cursor: 'pointer' }}>
+          <img src="https://img.icons8.com/ios-glyphs/90/ffffff/replay-10.png" alt="Retroceder 10s" />
+        </a>
+        <a onClick={avancar10s} style={{ cursor: 'pointer' }}>
+          <img src="https://img.icons8.com/ios-glyphs/90/ffffff/forward-10.png" alt="Avançar 10s" />
+        </a>
+      </div>
+
       <div className="volume-control">
-        {/* Adiciona o onClick e a lógica para trocar o ícone */}
-        <a onClick={mutarDesmutar} style={{ cursor: 'pointer' }}> 
+        <a onClick={mutarDesmutar} style={{ cursor: 'pointer' }}>
           <img src={volume === 0 ? "https://cdn-icons-png.flaticon.com/512/727/727240.png" : "https://cdn-icons-png.flaticon.com/512/727/727269.png"} alt="Volume/Mudo" />
         </a>
         <input
@@ -165,6 +225,20 @@ export default function Player() {
 
       <div id="musica-atual">
         Tocando: {musicas[indice].arquivo.split("/").pop()}
+      </div>
+
+      <div className="playlist">
+        <h2>Lista de Reprodução</h2>
+        {musicas.map((musica, i) => (
+          <div
+            key={i}
+            className={`playlist-item ${i === indice ? 'active' : ''}`}
+            onClick={() => tocarMusica(i)}
+          >
+            <img src={musica.capa} alt="Capa" className="playlist-item-capa" />
+            <span>{musica.arquivo.split("/").pop()?.replace('.mp3', '')}</span>
+          </div>
+        ))}
       </div>
     </main>
   );
